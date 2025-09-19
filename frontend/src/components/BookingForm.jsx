@@ -8,7 +8,10 @@ const BookingForm = ({ onNavigate, selectedHall, selectedDate }) => {
     endTime: '',
     numberOfSeats: '',
     bookingDate: selectedDate ? selectedDate.toISOString().split('T')[0] : '',
-    guestsAttending: false
+    guestsAttending: false,
+    acRequired: false,
+    projectorRequired: false,
+    extraRequirements: ''
   });
   const [loading, setLoading] = useState(false);
   const [user, setUser] = useState({ name: 'SWIPE' });
@@ -36,7 +39,6 @@ const BookingForm = ({ onNavigate, selectedHall, selectedDate }) => {
     return response.json();
   };
 
-  // Helper function to validate time constraints
   const validateTimeSlot = (startTime, endTime) => {
     if (!startTime || !endTime) return '';
 
@@ -47,8 +49,8 @@ const BookingForm = ({ onNavigate, selectedHall, selectedDate }) => {
 
     const startMinutes = timeToMinutes(startTime);
     const endMinutes = timeToMinutes(endTime);
-    const operatingStart = 7 * 60; // 7 AM
-    const operatingEnd = 18 * 60; // 6 PM
+    const operatingStart = 7 * 60;
+    const operatingEnd = 18 * 60;
 
     if (startMinutes < operatingStart || endMinutes > operatingEnd) {
       return 'Booking time must be between 7:00 AM and 6:00 PM';
@@ -74,7 +76,6 @@ const BookingForm = ({ onNavigate, selectedHall, selectedDate }) => {
       [name]: type === 'checkbox' ? checked : value
     }));
 
-    // Validate time when both start and end times are set
     if (name === 'startTime' || name === 'endTime') {
       const newFormData = { ...formData, [name]: value };
       const error = validateTimeSlot(newFormData.startTime, newFormData.endTime);
@@ -82,10 +83,10 @@ const BookingForm = ({ onNavigate, selectedHall, selectedDate }) => {
     }
   };
 
-  const handleToggleChange = () => {
+  const handleToggleChange = (field) => {
     setFormData(prev => ({
       ...prev,
-      guestsAttending: !prev.guestsAttending
+      [field]: !prev[field]
     }));
   };
 
@@ -114,7 +115,6 @@ const BookingForm = ({ onNavigate, selectedHall, selectedDate }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    // Final validation
     const error = validateTimeSlot(formData.startTime, formData.endTime);
     if (error) {
       setTimeError(error);
@@ -132,6 +132,11 @@ const BookingForm = ({ onNavigate, selectedHall, selectedDate }) => {
         endTime: formData.endTime,
         numberOfSeats: parseInt(formData.numberOfSeats),
         guestsAttending: formData.guestsAttending,
+        equipmentRequirements: {
+          ac: formData.acRequired,
+          projector: formData.projectorRequired
+        },
+        extraRequirements: formData.extraRequirements,
         notes: formData.notes || ''
       };
 
@@ -334,15 +339,59 @@ const BookingForm = ({ onNavigate, selectedHall, selectedDate }) => {
             </div>
 
             <div className="form-row">
-              <div className="form-group full-width">
+              <div className="form-group">
                 <div className="toggle-group">
                   <label className="toggle-label">Guests attending</label>
                   <div 
                     className={`toggle-switch ${formData.guestsAttending ? 'active' : ''}`}
-                    onClick={handleToggleChange}
+                    onClick={() => handleToggleChange('guestsAttending')}
                   >
                     <div className="toggle-slider"></div>
                   </div>
+                </div>
+              </div>
+
+              <div className="form-group">
+                <div className="toggle-group">
+                  <label className="toggle-label">AC Required</label>
+                  <div 
+                    className={`toggle-switch ${formData.acRequired ? 'active' : ''}`}
+                    onClick={() => handleToggleChange('acRequired')}
+                  >
+                    <div className="toggle-slider"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="form-row">
+              <div className="form-group">
+                <div className="toggle-group">
+                  <label className="toggle-label">Projector Required</label>
+                  <div 
+                    className={`toggle-switch ${formData.projectorRequired ? 'active' : ''}`}
+                    onClick={() => handleToggleChange('projectorRequired')}
+                  >
+                    <div className="toggle-slider"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="form-row">
+              <div className="form-group full-width">
+                <label htmlFor="extraRequirements">Extra Requirements</label>
+                <textarea
+                  id="extraRequirements"
+                  name="extraRequirements"
+                  value={formData.extraRequirements}
+                  onChange={handleInputChange}
+                  placeholder="Enter any additional requirements (microphone, speakers, special arrangements, etc.)"
+                  rows="4"
+                  maxLength="500"
+                />
+                <div className="character-count">
+                  {formData.extraRequirements.length}/500 characters
                 </div>
               </div>
             </div>

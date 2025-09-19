@@ -20,7 +20,6 @@ const bookingSchema = new mongoose.Schema({
     type: Date,
     required: [true, 'Please provide event date']
   },
-  // NEW: Replace duration with start/end times
   startTime: {
     type: String,
     required: [true, 'Please provide start time'],
@@ -41,7 +40,6 @@ const bookingSchema = new mongoose.Schema({
       message: 'End time must be in HH:MM format'
     }
   },
-  // Keep old fields for backward compatibility
   duration: {
     type: String,
     enum: ['custom', 'half-day-morning', 'half-day-afternoon', 'full-day', '2-hours', '4-hours'],
@@ -59,6 +57,23 @@ const bookingSchema = new mongoose.Schema({
   guestsAttending: {
     type: Boolean,
     default: false
+  },
+  // NEW: Equipment Requirements
+  equipmentRequirements: {
+    ac: {
+      type: Boolean,
+      default: false
+    },
+    projector: {
+      type: Boolean,
+      default: false
+    }
+  },
+  // NEW: Extra Requirements
+  extraRequirements: {
+    type: String,
+    trim: true,
+    maxLength: [500, 'Extra requirements cannot exceed 500 characters']
   },
   status: {
     type: String,
@@ -84,7 +99,7 @@ const bookingSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// FIXED: Validation middleware with proper error handling
+// Validation middleware with proper error handling
 bookingSchema.pre('save', function(next) {
   try {
     // Check if we have valid time values before processing

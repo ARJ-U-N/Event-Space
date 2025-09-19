@@ -87,14 +87,11 @@ const YourBookings = ({ onNavigate }) => {
     });
   };
 
-  // Updated to handle both old duration format and new start/end times
   const formatDuration = (booking) => {
-    // If booking has startTime/endTime, use those
     if (booking.startTime && booking.endTime) {
       return `${booking.startTime} - ${booking.endTime}`;
     }
     
-    // Fallback to old duration format
     const durationMap = {
       'half-day-morning': 'Half Day Morning',
       'half-day-afternoon': 'Half Day Afternoon',
@@ -218,6 +215,20 @@ const YourBookings = ({ onNavigate }) => {
                         <span className="detail-value">
                           {calculateBookingDuration(booking.startTime, booking.endTime)}
                         </span>
+                      </div>
+                    )}
+                    <div className="detail-row">
+                      <span className="detail-label">Equipment:</span>
+                      <span className="detail-value">
+                        {booking.equipmentRequirements?.ac && <span className="equipment-tag">AC</span>}
+                        {booking.equipmentRequirements?.projector && <span className="equipment-tag">Projector</span>}
+                        {!booking.equipmentRequirements?.ac && !booking.equipmentRequirements?.projector && 'None'}
+                      </span>
+                    </div>
+                    {booking.extraRequirements && (
+                      <div className="detail-row">
+                        <span className="detail-label">Extra Requirements:</span>
+                        <span className="detail-value extra-requirements">{booking.extraRequirements}</span>
                       </div>
                     )}
                     <div className="detail-row">
