@@ -1,4 +1,3 @@
-
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 
@@ -44,7 +43,7 @@ const auth = async (req, res, next) => {
   }
 };
 
-// Admin authorization middleware
+// UPDATED: Enhanced role authorization middleware
 const authorize = (...roles) => {
   return (req, res, next) => {
     if (!roles.includes(req.user.role)) {

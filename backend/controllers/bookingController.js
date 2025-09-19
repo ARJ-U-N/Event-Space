@@ -141,11 +141,12 @@ const generateAvailableTimeSlots = async (hallId, eventDate) => {
   return availableSlots;
 };
 
+// UPDATED: Get user's bookings (changed user to requestedBy)
 const getBookings = async (req, res) => {
   try {
-    const bookings = await Booking.find({ user: req.user.id })
+    const bookings = await Booking.find({ requestedBy: req.user.id }) // ✅ CHANGED: user → requestedBy
       .populate('hall', 'name number location capacity')
-      .populate('user', 'name email')
+      .populate('requestedBy', 'name email') // ✅ CHANGED: user → requestedBy
       .sort({ createdAt: -1 });
 
     res.json({
@@ -161,11 +162,12 @@ const getBookings = async (req, res) => {
   }
 };
 
+// UPDATED: Get single booking (changed user to requestedBy)
 const getBooking = async (req, res) => {
   try {
     const booking = await Booking.findById(req.params.id)
       .populate('hall', 'name number location capacity')
-      .populate('user', 'name email');
+      .populate('requestedBy', 'name email'); // ✅ CHANGED: user → requestedBy
 
     if (!booking) {
       return res.status(404).json({
@@ -174,7 +176,8 @@ const getBooking = async (req, res) => {
       });
     }
 
-    if (booking.user._id.toString() !== req.user.id && req.user.role !== 'admin') {
+    // ✅ CHANGED: booking.user._id → booking.requestedBy._id
+    if (booking.requestedBy._id.toString() !== req.user.id && req.user.role !== 'admin') {
       return res.status(403).json({
         success: false,
         message: 'Not authorized to access this booking'
@@ -193,6 +196,7 @@ const getBooking = async (req, res) => {
   }
 };
 
+// UPDATED: Create booking (changed user to requestedBy)
 const createBooking = async (req, res) => {
   try {
     const { 
@@ -248,8 +252,9 @@ const createBooking = async (req, res) => {
       });
     }
 
+    // ✅ CHANGED: user → requestedBy
     const booking = await Booking.create({
-      user: req.user.id,
+      requestedBy: req.user.id, // ✅ CRITICAL CHANGE: user → requestedBy
       hall: hallId,
       programmeName,
       eventDate,
@@ -265,7 +270,7 @@ const createBooking = async (req, res) => {
 
     const populatedBooking = await Booking.findById(booking._id)
       .populate('hall', 'name number location capacity')
-      .populate('user', 'name email');
+      .populate('requestedBy', 'name email'); // ✅ CHANGED: user → requestedBy
 
     res.status(201).json({
       success: true,
@@ -280,6 +285,7 @@ const createBooking = async (req, res) => {
   }
 };
 
+// UPDATED: Update booking (changed user to requestedBy)
 const updateBooking = async (req, res) => {
   try {
     let booking = await Booking.findById(req.params.id);
@@ -291,7 +297,8 @@ const updateBooking = async (req, res) => {
       });
     }
 
-    if (booking.user.toString() !== req.user.id) {
+    // ✅ CHANGED: booking.user → booking.requestedBy
+    if (booking.requestedBy.toString() !== req.user.id) {
       return res.status(403).json({
         success: false,
         message: 'Not authorized to update this booking'
@@ -329,7 +336,7 @@ const updateBooking = async (req, res) => {
       new: true,
       runValidators: true
     }).populate('hall', 'name number location capacity')
-      .populate('user', 'name email');
+      .populate('requestedBy', 'name email'); // ✅ CHANGED: user → requestedBy
 
     res.json({
       success: true,
@@ -343,6 +350,7 @@ const updateBooking = async (req, res) => {
   }
 };
 
+// UPDATED: Cancel booking (changed user to requestedBy)
 const cancelBooking = async (req, res) => {
   try {
     const booking = await Booking.findById(req.params.id);
@@ -354,7 +362,8 @@ const cancelBooking = async (req, res) => {
       });
     }
 
-    if (booking.user.toString() !== req.user.id) {
+    // ✅ CHANGED: booking.user → booking.requestedBy
+    if (booking.requestedBy.toString() !== req.user.id) {
       return res.status(403).json({
         success: false,
         message: 'Not authorized to cancel this booking'
@@ -376,6 +385,7 @@ const cancelBooking = async (req, res) => {
   }
 };
 
+// UPDATED: Get detailed hall availability (changed user to requestedBy in population)
 const getDetailedHallAvailability = async (req, res) => {
   try {
     const { hallId, date } = req.params;
@@ -395,7 +405,7 @@ const getDetailedHallAvailability = async (req, res) => {
         $lte: moment(date).endOf('day').toDate()
       },
       status: { $in: ['PENDING', 'APPROVED'] }
-    }).populate('user', 'name').sort({ startTime: 1 });
+    }).populate('requestedBy', 'name').sort({ startTime: 1 }); // ✅ CHANGED: user → requestedBy
 
     const validBookings = bookings.filter(booking => booking.startTime && booking.endTime);
     const availableSlots = await generateAvailableTimeSlots(hallId, date);
@@ -418,7 +428,7 @@ const getDetailedHallAvailability = async (req, res) => {
           endTime: booking.endTime,
           numberOfSeats: booking.numberOfSeats,
           status: booking.status,
-          user: booking.user.name
+          user: booking.requestedBy.name // ✅ CHANGED: booking.user → booking.requestedBy
         })),
         availableSlots,
         bufferTime: '1 hour'
