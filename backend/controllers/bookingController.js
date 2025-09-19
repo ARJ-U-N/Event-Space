@@ -2,31 +2,40 @@ const Booking = require('../models/Booking');
 const Hall = require('../models/Hall');
 const moment = require('moment');
 
-// Helper function to convert time string to minutes
 const timeToMinutes = (timeStr) => {
-  const [hours, minutes] = timeStr.split(':').map(Number);
+  if (!timeStr || typeof timeStr !== 'string') {
+    throw new Error('Invalid time format: ' + timeStr);
+  }
+  const parts = timeStr.split(':');
+  if (parts.length !== 2) {
+    throw new Error('Time must be in HH:MM format');
+  }
+  const [hours, minutes] = parts.map(Number);
+  if (isNaN(hours) || isNaN(minutes)) {
+    throw new Error('Invalid time values');
+  }
   return hours * 60 + minutes;
 };
 
-// Helper function to convert minutes to time string
 const minutesToTime = (minutes) => {
   const hours = Math.floor(minutes / 60);
   const mins = minutes % 60;
   return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
 };
 
-// NEW: Check time slot availability with buffer
 const checkTimeSlotAvailability = async (hallId, eventDate, newStartTime, newEndTime, excludeBookingId = null) => {
   try {
+    if (!newStartTime || !newEndTime) {
+      throw new Error('Start time and end time are required');
+    }
+
     const newStartMinutes = timeToMinutes(newStartTime);
     const newEndMinutes = timeToMinutes(newEndTime);
     
-    // Add 1-hour buffer (60 minutes)
     const bufferMinutes = 60;
     const effectiveStartMinutes = newStartMinutes - bufferMinutes;
     const effectiveEndMinutes = newEndMinutes + bufferMinutes;
 
-    // Find existing bookings for the same day
     const filter = {
       hall: hallId,
       eventDate: {
@@ -36,30 +45,36 @@ const checkTimeSlotAvailability = async (hallId, eventDate, newStartTime, newEnd
       status: { $in: ['PENDING', 'APPROVED'] }
     };
 
-    // Exclude current booking when updating
     if (excludeBookingId) {
       filter._id = { $ne: excludeBookingId };
     }
 
     const existingBookings = await Booking.find(filter);
 
-    // Check for conflicts including buffer time
     for (const booking of existingBookings) {
-      const existingStartMinutes = timeToMinutes(booking.startTime);
-      const existingEndMinutes = timeToMinutes(booking.endTime);
+      if (!booking.startTime || !booking.endTime) {
+        continue;
+      }
 
-      // Check if the new booking (including buffer) overlaps with existing booking
-      const hasOverlap = (
-        (newStartMinutes < existingEndMinutes && newEndMinutes > existingStartMinutes) ||
-        (effectiveStartMinutes < existingEndMinutes && effectiveEndMinutes > existingStartMinutes)
-      );
+      try {
+        const existingStartMinutes = timeToMinutes(booking.startTime);
+        const existingEndMinutes = timeToMinutes(booking.endTime);
 
-      if (hasOverlap) {
-        return {
-          available: false,
-          conflictingBooking: booking,
-          reason: `Time slot conflicts with existing booking: ${booking.startTime} - ${booking.endTime}. Remember to leave 1-hour buffer time.`
-        };
+        const hasOverlap = (
+          (newStartMinutes < existingEndMinutes && newEndMinutes > existingStartMinutes) ||
+          (effectiveStartMinutes < existingEndMinutes && effectiveEndMinutes > existingStartMinutes)
+        );
+
+        if (hasOverlap) {
+          return {
+            available: false,
+            conflictingBooking: booking,
+            reason: `Time slot conflicts with existing booking: ${booking.startTime} - ${booking.endTime}. Remember to leave 1-hour buffer time.`
+          };
+        }
+      } catch (timeParseError) {
+        console.error('Error parsing booking time:', timeParseError);
+        continue;
       }
     }
 
@@ -69,14 +84,12 @@ const checkTimeSlotAvailability = async (hallId, eventDate, newStartTime, newEnd
   }
 };
 
-// NEW: Generate available time slots for a given day
 const generateAvailableTimeSlots = async (hallId, eventDate) => {
-  const operatingStart = 7 * 60; // 7 AM
-  const operatingEnd = 18 * 60; // 6 PM
-  const slotDuration = 60; // 1 hour slots
+  const operatingStart = 7 * 60;
+  const operatingEnd = 18 * 60;
+  const slotDuration = 60;
   const bufferMinutes = 60;
 
-  // Get existing bookings
   const existingBookings = await Booking.find({
     hall: hallId,
     eventDate: {
@@ -93,20 +106,24 @@ const generateAvailableTimeSlots = async (hallId, eventDate) => {
     const slotStart = currentTime;
     const slotEnd = currentTime + slotDuration;
 
-    // Check if this slot conflicts with any booking (including buffer)
     let isAvailable = true;
     
     for (const booking of existingBookings) {
-      const bookingStart = timeToMinutes(booking.startTime);
-      const bookingEnd = timeToMinutes(booking.endTime);
+      if (!booking.startTime || !booking.endTime) continue;
       
-      // Check overlap including buffer
-      if (
-        (slotStart < bookingEnd + bufferMinutes && slotEnd + bufferMinutes > bookingStart) ||
-        (slotStart - bufferMinutes < bookingEnd && slotEnd > bookingStart - bufferMinutes)
-      ) {
-        isAvailable = false;
-        break;
+      try {
+        const bookingStart = timeToMinutes(booking.startTime);
+        const bookingEnd = timeToMinutes(booking.endTime);
+        
+        if (
+          (slotStart < bookingEnd + bufferMinutes && slotEnd + bufferMinutes > bookingStart) ||
+          (slotStart - bufferMinutes < bookingEnd && slotEnd > bookingStart - bufferMinutes)
+        ) {
+          isAvailable = false;
+          break;
+        }
+      } catch (error) {
+        continue;
       }
     }
 
@@ -124,136 +141,6 @@ const generateAvailableTimeSlots = async (hallId, eventDate) => {
   return availableSlots;
 };
 
-// Updated create booking function
-const createBooking = async (req, res) => {
-  try {
-    const { hallId, programmeName, eventDate, startTime, endTime, numberOfSeats, guestsAttending, notes } = req.body;
-
-    const hall = await Hall.findById(hallId);
-    if (!hall) {
-      return res.status(404).json({
-        success: false,
-        message: 'Hall not found'
-      });
-    }
-
-    // Validate seat capacity
-    if (numberOfSeats > hall.capacity) {
-      return res.status(400).json({
-        success: false,
-        message: `Number of seats (${numberOfSeats}) exceeds hall capacity (${hall.capacity})`
-      });
-    }
-
-    // Validate booking date
-    const bookingDate = moment(eventDate);
-    if (bookingDate.isBefore(moment(), 'day')) {
-      return res.status(400).json({
-        success: false,
-        message: 'Cannot book for past dates'
-      });
-    }
-
-    // Check time slot availability with buffer
-    const availability = await checkTimeSlotAvailability(hallId, eventDate, startTime, endTime);
-
-    if (!availability.available) {
-      return res.status(400).json({
-        success: false,
-        message: availability.reason,
-        conflictingBooking: availability.conflictingBooking
-      });
-    }
-
-    // Create booking
-    const booking = await Booking.create({
-      user: req.user.id,
-      hall: hallId,
-      programmeName,
-      eventDate,
-      startTime,
-      endTime,
-      numberOfSeats,
-      guestsAttending,
-      notes,
-      duration: 'custom' // Set as custom for new dynamic bookings
-    });
-
-    const populatedBooking = await Booking.findById(booking._id)
-      .populate('hall', 'name number location capacity')
-      .populate('user', 'name email');
-
-    res.status(201).json({
-      success: true,
-      data: populatedBooking
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message
-    });
-  }
-};
-
-// Updated get detailed hall availability
-const getDetailedHallAvailability = async (req, res) => {
-  try {
-    const { hallId, date } = req.params;
-
-    const hall = await Hall.findById(hallId);
-    if (!hall) {
-      return res.status(404).json({
-        success: false,
-        message: 'Hall not found'
-      });
-    }
-
-    // Get existing bookings
-    const bookings = await Booking.find({
-      hall: hallId,
-      eventDate: {
-        $gte: moment(date).startOf('day').toDate(),
-        $lte: moment(date).endOf('day').toDate()
-      },
-      status: { $in: ['PENDING', 'APPROVED'] }
-    }).populate('user', 'name').sort({ startTime: 1 });
-
-    // Generate available time slots
-    const availableSlots = await generateAvailableTimeSlots(hallId, date);
-
-    res.json({
-      success: true,
-      data: {
-        date,
-        hallId,
-        hallName: hall.name,
-        totalBookings: bookings.length,
-        operatingHours: {
-          start: '07:00',
-          end: '18:00'
-        },
-        bookings: bookings.map(booking => ({
-          id: booking._id,
-          programmeName: booking.programmeName,
-          startTime: booking.startTime,
-          endTime: booking.endTime,
-          numberOfSeats: booking.numberOfSeats,
-          status: booking.status,
-          user: booking.user.name
-        })),
-        availableSlots,
-        bufferTime: '1 hour'
-      }
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message
-    });
-  }
-};
-
-// Rest of the controller functions remain the same but update references to use startTime/endTime
 const getBookings = async (req, res) => {
   try {
     const bookings = await Booking.find({ user: req.user.id })
@@ -287,7 +174,6 @@ const getBooking = async (req, res) => {
       });
     }
 
-    // Check authorization
     if (booking.user._id.toString() !== req.user.id && req.user.role !== 'admin') {
       return res.status(403).json({
         success: false,
@@ -307,6 +193,93 @@ const getBooking = async (req, res) => {
   }
 };
 
+const createBooking = async (req, res) => {
+  try {
+    const { 
+      hallId, 
+      programmeName, 
+      eventDate, 
+      startTime, 
+      endTime, 
+      numberOfSeats, 
+      guestsAttending, 
+      equipmentRequirements,
+      extraRequirements,
+      notes 
+    } = req.body;
+
+    if (!startTime || !endTime) {
+      return res.status(400).json({
+        success: false,
+        message: 'Start time and end time are required'
+      });
+    }
+
+    const hall = await Hall.findById(hallId);
+    if (!hall) {
+      return res.status(404).json({
+        success: false,
+        message: 'Hall not found'
+      });
+    }
+
+    if (numberOfSeats > hall.capacity) {
+      return res.status(400).json({
+        success: false,
+        message: `Number of seats (${numberOfSeats}) exceeds hall capacity (${hall.capacity})`
+      });
+    }
+
+    const bookingDate = moment(eventDate);
+    if (bookingDate.isBefore(moment(), 'day')) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot book for past dates'
+      });
+    }
+
+    const availability = await checkTimeSlotAvailability(hallId, eventDate, startTime, endTime);
+
+    if (!availability.available) {
+      return res.status(400).json({
+        success: false,
+        message: availability.reason,
+        conflictingBooking: availability.conflictingBooking
+      });
+    }
+
+    const booking = await Booking.create({
+      user: req.user.id,
+      hall: hallId,
+      programmeName,
+      eventDate,
+      startTime,
+      endTime,
+      numberOfSeats,
+      guestsAttending,
+      equipmentRequirements: equipmentRequirements || { ac: false, projector: false },
+      extraRequirements,
+      notes,
+      duration: 'custom'
+    });
+
+    const populatedBooking = await Booking.findById(booking._id)
+      .populate('hall', 'name number location capacity')
+      .populate('user', 'name email');
+
+    res.status(201).json({
+      success: true,
+      data: populatedBooking
+    });
+  } catch (error) {
+    console.error('Booking creation error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to create booking'
+    });
+  }
+};
+
 const updateBooking = async (req, res) => {
   try {
     let booking = await Booking.findById(req.params.id);
@@ -318,7 +291,6 @@ const updateBooking = async (req, res) => {
       });
     }
 
-    // Check authorization
     if (booking.user.toString() !== req.user.id) {
       return res.status(403).json({
         success: false,
@@ -333,7 +305,6 @@ const updateBooking = async (req, res) => {
       });
     }
 
-    // If updating time, check availability
     if (req.body.startTime || req.body.endTime) {
       const newStartTime = req.body.startTime || booking.startTime;
       const newEndTime = req.body.endTime || booking.endTime;
@@ -343,7 +314,7 @@ const updateBooking = async (req, res) => {
         booking.eventDate, 
         newStartTime, 
         newEndTime,
-        booking._id // Exclude current booking
+        booking._id
       );
 
       if (!availability.available) {
@@ -383,7 +354,6 @@ const cancelBooking = async (req, res) => {
       });
     }
 
-    // Check authorization
     if (booking.user.toString() !== req.user.id) {
       return res.status(403).json({
         success: false,
@@ -399,6 +369,63 @@ const cancelBooking = async (req, res) => {
       message: 'Booking cancelled successfully'
     });
   } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+const getDetailedHallAvailability = async (req, res) => {
+  try {
+    const { hallId, date } = req.params;
+
+    const hall = await Hall.findById(hallId);
+    if (!hall) {
+      return res.status(404).json({
+        success: false,
+        message: 'Hall not found'
+      });
+    }
+
+    const bookings = await Booking.find({
+      hall: hallId,
+      eventDate: {
+        $gte: moment(date).startOf('day').toDate(),
+        $lte: moment(date).endOf('day').toDate()
+      },
+      status: { $in: ['PENDING', 'APPROVED'] }
+    }).populate('user', 'name').sort({ startTime: 1 });
+
+    const validBookings = bookings.filter(booking => booking.startTime && booking.endTime);
+    const availableSlots = await generateAvailableTimeSlots(hallId, date);
+
+    res.json({
+      success: true,
+      data: {
+        date,
+        hallId,
+        hallName: hall.name,
+        totalBookings: validBookings.length,
+        operatingHours: {
+          start: '07:00',
+          end: '18:00'
+        },
+        bookings: validBookings.map(booking => ({
+          id: booking._id,
+          programmeName: booking.programmeName,
+          startTime: booking.startTime,
+          endTime: booking.endTime,
+          numberOfSeats: booking.numberOfSeats,
+          status: booking.status,
+          user: booking.user.name
+        })),
+        availableSlots,
+        bufferTime: '1 hour'
+      }
+    });
+  } catch (error) {
+    console.error('Availability check error:', error);
     res.status(500).json({
       success: false,
       message: error.message

@@ -354,3 +354,19 @@
     gap: 0.5rem;
   }
 }
+.equipment-tag {
+  background: #e3f2fd;
+  color: #1976d2;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  margin-right: 5px;
+  display: inline-block;
+}
+
+.extra-requirements {
+  font-size: 13px;
+  line-height: 1.4;
+  max-width: 200px;
+  word-wrap: break-word;
+}
