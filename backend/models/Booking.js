@@ -1,7 +1,8 @@
 const mongoose = require('mongoose');
 
 const bookingSchema = new mongoose.Schema({
-  user: {
+  // RENAMED: user -> requestedBy to be more specific
+  requestedBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     required: true
@@ -58,7 +59,6 @@ const bookingSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
-  // NEW: Equipment Requirements
   equipmentRequirements: {
     ac: {
       type: Boolean,
@@ -69,7 +69,6 @@ const bookingSchema = new mongoose.Schema({
       default: false
     }
   },
-  // NEW: Extra Requirements
   extraRequirements: {
     type: String,
     trim: true,
@@ -84,16 +83,24 @@ const bookingSchema = new mongoose.Schema({
     type: String,
     trim: true
   },
-  approvedBy: {
+  // RENAMED: approvedBy -> respondedBy to handle both approve/reject
+  respondedBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
   },
-  approvalDate: {
+  // RENAMED: approvalDate -> responseDate
+  responseDate: {
     type: Date
   },
   rejectionReason: {
     type: String,
     trim: true
+  },
+  // NEW: Admin notes when responding to request
+  adminNotes: {
+    type: String,
+    trim: true,
+    maxLength: [500, 'Admin notes cannot exceed 500 characters']
   }
 }, {
   timestamps: true
@@ -153,8 +160,9 @@ bookingSchema.pre('save', function(next) {
   }
 });
 
-// Index for efficient queries
+// FIXED: Index for efficient queries using bookingSchema (not hallSchema)
 bookingSchema.index({ hall: 1, eventDate: 1, startTime: 1, endTime: 1 });
-bookingSchema.index({ user: 1, status: 1 });
+bookingSchema.index({ requestedBy: 1, status: 1 }); // UPDATED: user -> requestedBy
+bookingSchema.index({ status: 1, createdAt: -1 });
 
 module.exports = mongoose.model('Booking', bookingSchema);

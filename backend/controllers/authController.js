@@ -1,7 +1,5 @@
-
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
-
 
 const generateToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, {
@@ -9,12 +7,10 @@ const generateToken = (id) => {
   });
 };
 
-
 const register = async (req, res) => {
   try {
     const { name, email, password, role, department, phone } = req.body;
 
-    
     const userExists = await User.findOne({ email });
     if (userExists) {
       return res.status(400).json({
@@ -23,7 +19,6 @@ const register = async (req, res) => {
       });
     }
 
-  
     const user = await User.create({
       name,
       email,
@@ -56,12 +51,10 @@ const register = async (req, res) => {
   }
 };
 
-
 const login = async (req, res) => {
   try {
     const { email, password, role } = req.body;
 
-  
     const user = await User.findOne({ email, isActive: true });
     if (!user) {
       return res.status(401).json({
@@ -70,7 +63,6 @@ const login = async (req, res) => {
       });
     }
 
- 
     const isMatch = await user.comparePassword(password);
     if (!isMatch) {
       return res.status(401).json({
@@ -79,11 +71,11 @@ const login = async (req, res) => {
       });
     }
 
-    
+    // Role validation - user must select correct role
     if (role && user.role !== role) {
       return res.status(401).json({
         success: false,
-        message: 'Invalid role'
+        message: 'Invalid role selection'
       });
     }
 
@@ -110,13 +102,27 @@ const login = async (req, res) => {
   }
 };
 
-
 const getMe = async (req, res) => {
   try {
     const user = await User.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
     res.json({
       success: true,
-      data: user
+      data: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        department: user.department,
+        phone: user.phone,
+        isActive: user.isActive
+      }
     });
   } catch (error) {
     res.status(500).json({

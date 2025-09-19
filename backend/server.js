@@ -34,6 +34,10 @@ app.use('/api/auth', require('./routes/auth'));
 app.use('/api/halls', require('./routes/halls'));
 app.use('/api/bookings', require('./routes/bookings'));
 
+app.use('/api/teacher', require('./routes/teacher'));
+app.use('/api/admin', require('./routes/admin'));
+app.use('/api/superadmin', require('./routes/superadmin'));
+
 
 app.get('/api/health', (req, res) => {
   res.json({

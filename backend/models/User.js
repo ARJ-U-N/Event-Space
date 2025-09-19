@@ -1,4 +1,3 @@
-
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
@@ -23,7 +22,7 @@ const userSchema = new mongoose.Schema({
   },
   role: {
     type: String,
-    enum: ['teacher', 'admin'],
+    enum: ['teacher', 'admin', 'superadmin'], // ADDED superadmin role
     default: 'teacher'
   },
   department: {

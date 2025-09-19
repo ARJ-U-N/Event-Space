@@ -32,12 +32,19 @@ const hallSchema = new mongoose.Schema({
     microphone: { type: Boolean, default: false },
     speakers: { type: Boolean, default: false },
     wifi: { type: Boolean, default: false },
-    whiteboard: { type: Boolean, default: false }
+    whiteboard: { type: Boolean, default: false },
+    ac: { type: Boolean, default: false } // ADDED AC amenity
   },
   images: [{
     url: String,
     description: String
   }],
+  // NEW: Admin who created/manages this hall
+  createdBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
+  },
   isActive: {
     type: Boolean,
     default: true
@@ -45,9 +52,24 @@ const hallSchema = new mongoose.Schema({
   pricePerHour: {
     type: Number,
     default: 0
+  },
+  // NEW: Operating hours for the hall
+  operatingHours: {
+    start: {
+      type: String,
+      default: '07:00'
+    },
+    end: {
+      type: String,
+      default: '18:00'
+    }
   }
 }, {
   timestamps: true
 });
+
+// Index for efficient queries
+hallSchema.index({ createdBy: 1, isActive: 1 });
+hallSchema.index({ number: 1 });
 
 module.exports = mongoose.model('Hall', hallSchema);
