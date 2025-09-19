@@ -4,13 +4,15 @@ import '../styles/BookingForm.css';
 const BookingForm = ({ onNavigate, selectedHall, selectedDate }) => {
   const [formData, setFormData] = useState({
     programmeName: '',
-    duration: '',
+    startTime: '',
+    endTime: '',
     numberOfSeats: '',
     bookingDate: selectedDate ? selectedDate.toISOString().split('T')[0] : '',
     guestsAttending: false
   });
   const [loading, setLoading] = useState(false);
   const [user, setUser] = useState({ name: 'SWIPE' });
+  const [timeError, setTimeError] = useState('');
 
   const submitBooking = async (bookingData) => {
     const token = localStorage.getItem('token');
@@ -34,12 +36,50 @@ const BookingForm = ({ onNavigate, selectedHall, selectedDate }) => {
     return response.json();
   };
 
+  // Helper function to validate time constraints
+  const validateTimeSlot = (startTime, endTime) => {
+    if (!startTime || !endTime) return '';
+
+    const timeToMinutes = (timeStr) => {
+      const [hours, minutes] = timeStr.split(':').map(Number);
+      return hours * 60 + minutes;
+    };
+
+    const startMinutes = timeToMinutes(startTime);
+    const endMinutes = timeToMinutes(endTime);
+    const operatingStart = 7 * 60; // 7 AM
+    const operatingEnd = 18 * 60; // 6 PM
+
+    if (startMinutes < operatingStart || endMinutes > operatingEnd) {
+      return 'Booking time must be between 7:00 AM and 6:00 PM';
+    }
+
+    if (endMinutes <= startMinutes) {
+      return 'End time must be after start time';
+    }
+
+    const durationMinutes = endMinutes - startMinutes;
+    if (durationMinutes < 60) {
+      return 'Minimum booking duration is 1 hour';
+    }
+
+    return '';
+  };
+
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
+    
     setFormData(prev => ({
       ...prev,
       [name]: type === 'checkbox' ? checked : value
     }));
+
+    // Validate time when both start and end times are set
+    if (name === 'startTime' || name === 'endTime') {
+      const newFormData = { ...formData, [name]: value };
+      const error = validateTimeSlot(newFormData.startTime, newFormData.endTime);
+      setTimeError(error);
+    }
   };
 
   const handleToggleChange = () => {
@@ -49,17 +89,47 @@ const BookingForm = ({ onNavigate, selectedHall, selectedDate }) => {
     }));
   };
 
+  const getDurationText = () => {
+    if (!formData.startTime || !formData.endTime) return '';
+    
+    const timeToMinutes = (timeStr) => {
+      const [hours, minutes] = timeStr.split(':').map(Number);
+      return hours * 60 + minutes;
+    };
+
+    const startMinutes = timeToMinutes(formData.startTime);
+    const endMinutes = timeToMinutes(formData.endTime);
+    const durationMinutes = endMinutes - startMinutes;
+    
+    if (durationMinutes <= 0) return '';
+    
+    const hours = Math.floor(durationMinutes / 60);
+    const minutes = durationMinutes % 60;
+    
+    if (hours === 0) return `${minutes} minutes`;
+    if (minutes === 0) return `${hours} hour${hours > 1 ? 's' : ''}`;
+    return `${hours} hour${hours > 1 ? 's' : ''} ${minutes} minutes`;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // Final validation
+    const error = validateTimeSlot(formData.startTime, formData.endTime);
+    if (error) {
+      setTimeError(error);
+      return;
+    }
+
     setLoading(true);
 
     try {
-      
       const bookingData = {
         hallId: selectedHall?._id, 
         programmeName: formData.programmeName,
         eventDate: formData.bookingDate, 
-        duration: formData.duration,
+        startTime: formData.startTime,
+        endTime: formData.endTime,
         numberOfSeats: parseInt(formData.numberOfSeats),
         guestsAttending: formData.guestsAttending,
         notes: formData.notes || ''
@@ -165,6 +235,10 @@ const BookingForm = ({ onNavigate, selectedHall, selectedDate }) => {
         </div>
 
         <div className="booking-form-section">
+          <div className="operating-hours-info">
+            <p>Operating Hours: 7:00 AM - 6:00 PM | Minimum Duration: 1 hour | Buffer Time: 1 hour between bookings</p>
+          </div>
+
           <form onSubmit={handleSubmit} className="booking-form">
             <div className="form-row">
               <div className="form-group">
@@ -178,24 +252,6 @@ const BookingForm = ({ onNavigate, selectedHall, selectedDate }) => {
                   placeholder="Enter programme name"
                   required
                 />
-              </div>
-
-              <div className="form-group">
-                <label htmlFor="duration">Duration</label>
-                <select
-                  id="duration"
-                  name="duration"
-                  value={formData.duration}
-                  onChange={handleInputChange}
-                  required
-                >
-                  <option value="">Select duration</option>
-                  <option value="half-day-morning">Half Day - Morning</option>
-                  <option value="half-day-afternoon">Half Day - Afternoon</option>
-                  <option value="full-day">Full Day</option>
-                  <option value="2-hours">2 Hours</option>
-                  <option value="4-hours">4 Hours</option>
-                </select>
               </div>
 
               <div className="form-group">
@@ -216,6 +272,49 @@ const BookingForm = ({ onNavigate, selectedHall, selectedDate }) => {
                 </div>
               </div>
             </div>
+
+            <div className="form-row">
+              <div className="form-group">
+                <label htmlFor="startTime">Start Time</label>
+                <input
+                  type="time"
+                  id="startTime"
+                  name="startTime"
+                  value={formData.startTime}
+                  onChange={handleInputChange}
+                  min="07:00"
+                  max="17:00"
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="endTime">End Time</label>
+                <input
+                  type="time"
+                  id="endTime"
+                  name="endTime"
+                  value={formData.endTime}
+                  onChange={handleInputChange}
+                  min="08:00"
+                  max="18:00"
+                  required
+                />
+              </div>
+            </div>
+
+            {formData.startTime && formData.endTime && !timeError && (
+              <div className="duration-display">
+                <span className="duration-label">Duration: </span>
+                <span className="duration-value">{getDurationText()}</span>
+              </div>
+            )}
+
+            {timeError && (
+              <div className="time-error">
+                {timeError}
+              </div>
+            )}
 
             <div className="form-row">
               <div className="form-group full-width">
@@ -251,7 +350,7 @@ const BookingForm = ({ onNavigate, selectedHall, selectedDate }) => {
             <button 
               type="submit" 
               className="book-now-btn"
-              disabled={loading}
+              disabled={loading || !!timeError}
             >
               <i className="check-icon">✓</i>
               {loading ? 'Booking...' : 'Book Now'}

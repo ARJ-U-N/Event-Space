@@ -87,15 +87,45 @@ const YourBookings = ({ onNavigate }) => {
     });
   };
 
-  const formatDuration = (duration) => {
+  // Updated to handle both old duration format and new start/end times
+  const formatDuration = (booking) => {
+    // If booking has startTime/endTime, use those
+    if (booking.startTime && booking.endTime) {
+      return `${booking.startTime} - ${booking.endTime}`;
+    }
+    
+    // Fallback to old duration format
     const durationMap = {
       'half-day-morning': 'Half Day Morning',
       'half-day-afternoon': 'Half Day Afternoon',
       'full-day': 'Full Day',
       '2-hours': '2 Hours',
-      '4-hours': '4 Hours'
+      '4-hours': '4 Hours',
+      'custom': 'Custom Duration'
     };
-    return durationMap[duration] || duration;
+    return durationMap[booking.duration] || booking.duration;
+  };
+
+  const calculateBookingDuration = (startTime, endTime) => {
+    if (!startTime || !endTime) return '';
+    
+    const timeToMinutes = (timeStr) => {
+      const [hours, minutes] = timeStr.split(':').map(Number);
+      return hours * 60 + minutes;
+    };
+
+    const startMinutes = timeToMinutes(startTime);
+    const endMinutes = timeToMinutes(endTime);
+    const durationMinutes = endMinutes - startMinutes;
+    
+    if (durationMinutes <= 0) return '';
+    
+    const hours = Math.floor(durationMinutes / 60);
+    const minutes = durationMinutes % 60;
+    
+    if (hours === 0) return `${minutes} min`;
+    if (minutes === 0) return `${hours}h`;
+    return `${hours}h ${minutes}min`;
   };
 
   return (
@@ -179,13 +209,17 @@ const YourBookings = ({ onNavigate }) => {
                       <span className="detail-value">{booking.programmeName}</span>
                     </div>
                     <div className="detail-row">
-                      <span className="detail-label">Duration:</span>
-                      <span className="detail-value">{formatDuration(booking.duration)}</span>
-                    </div>
-                    <div className="detail-row">
                       <span className="detail-label">Time:</span>
-                      <span className="detail-value">{booking.timeSlot?.startTime} - {booking.timeSlot?.endTime}</span>
+                      <span className="detail-value">{formatDuration(booking)}</span>
                     </div>
+                    {booking.startTime && booking.endTime && (
+                      <div className="detail-row">
+                        <span className="detail-label">Duration:</span>
+                        <span className="detail-value">
+                          {calculateBookingDuration(booking.startTime, booking.endTime)}
+                        </span>
+                      </div>
+                    )}
                     <div className="detail-row">
                       <span className="detail-label">Guests:</span>
                       <span className="detail-value">{booking.guestsAttending ? 'Yes' : 'No'}</span>

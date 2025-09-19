@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import '../styles/BookingCalendar.css';
 
@@ -21,7 +20,7 @@ const BookingCalendar = ({ onNavigate, selectedHall }) => {
 
   const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-  
+  // Updated to handle new API response structure
   const fetchDetailedAvailability = async (date, hallId) => {
     const token = localStorage.getItem('token');
     const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
@@ -41,7 +40,6 @@ const BookingCalendar = ({ onNavigate, selectedHall }) => {
       console.log('API error, using mock data');
     }
 
-   
     return null;
   };
 
@@ -96,7 +94,6 @@ const BookingCalendar = ({ onNavigate, selectedHall }) => {
     }
   };
 
-  
   const handleBookSlot = (availableSlot = null) => {
     onNavigate('bookingform', selectedHall, selectedDate, availableSlot);
   };
@@ -112,7 +109,7 @@ const BookingCalendar = ({ onNavigate, selectedHall }) => {
     const firstDay = getFirstDayOfMonth(currentMonth, currentYear);
     const days = [];
 
-    
+    // Empty cells for days before month starts
     for (let i = 0; i < firstDay; i++) {
       days.push(<div key={`empty-${i}`} className="calendar-day empty"></div>);
     }
@@ -125,18 +122,17 @@ const BookingCalendar = ({ onNavigate, selectedHall }) => {
                         selectedDate.getFullYear() === currentYear;
       const isToday = new Date().toDateString() === dateStr;
       
-      
       const dayData = dayAvailability[dateStr];
       const hasBookings = dayData && dayData.totalBookings > 0;
-      const isFullyBooked = dayData && dayData.isDayFullyBooked;
       const hasAvailableSlots = dayData && dayData.availableSlots && dayData.availableSlots.length > 0;
+      const isFullyBooked = hasBookings && !hasAvailableSlots;
 
       days.push(
         <div
           key={day}
           className={`calendar-day ${isSelected ? 'selected' : ''} ${isToday ? 'today' : ''} 
                      ${hasBookings ? 'has-bookings' : ''} ${isFullyBooked ? 'fully-booked' : ''} 
-                     ${hasAvailableSlots ? 'partially-available' : ''}`}
+                     ${hasAvailableSlots ? 'has-available-slots' : ''}`}
           onClick={() => handleDateClick(day)}
         >
           {day}
@@ -158,11 +154,22 @@ const BookingCalendar = ({ onNavigate, selectedHall }) => {
     }).toUpperCase();
   };
 
+  const formatTimeRange = (startTime, endTime) => {
+    const formatTime = (time) => {
+      const [hours, minutes] = time.split(':');
+      const hour12 = ((parseInt(hours) + 11) % 12 + 1);
+      const ampm = parseInt(hours) >= 12 ? 'PM' : 'AM';
+      return `${hour12}:${minutes} ${ampm}`;
+    };
+
+    return `${formatTime(startTime)} - ${formatTime(endTime)}`;
+  };
+
   const currentAvailability = dayAvailability[selectedDate.toDateString()];
 
   return (
     <div className="booking-calendar-container">
-      
+      {/* Sidebar */}
       <div className="sidebar">
         <div className="logo-section">
           <img 
@@ -192,9 +199,9 @@ const BookingCalendar = ({ onNavigate, selectedHall }) => {
         </nav>
       </div>
 
-      
+      {/* Main Content */}
       <div className="main-content">
-        
+        {/* Header */}
         <div className="header">
           <div className="search-container">
             <input
@@ -211,9 +218,9 @@ const BookingCalendar = ({ onNavigate, selectedHall }) => {
           </div>
         </div>
 
-        
+        {/* Calendar Section */}
         <div className="calendar-section">
-          
+          {/* Months Panel */}
           <div className="months-panel">
             <div className="year-navigation">
               <button 
@@ -245,7 +252,7 @@ const BookingCalendar = ({ onNavigate, selectedHall }) => {
             </div>
           </div>
 
-       
+          {/* Calendar Panel */}
           <div className="calendar-panel">
             <div className="calendar-header">
               <h2>{monthNames[currentMonth]} {currentYear}</h2>
@@ -263,7 +270,7 @@ const BookingCalendar = ({ onNavigate, selectedHall }) => {
             </div>
           </div>
 
-          
+          {/* Updated Date Info Panel */}
           <div className="date-info-panel">
             <button 
               className="close-panel-btn"
@@ -276,7 +283,13 @@ const BookingCalendar = ({ onNavigate, selectedHall }) => {
               <h3>{formatSelectedDate()}</h3>
               
               <div className="availability-section">
-               
+                {/* Operating Hours Info */}
+                <div className="operating-hours">
+                  <small>Operating Hours: 7:00 AM - 6:00 PM</small>
+                  <small>Buffer Time: 1 hour between bookings</small>
+                </div>
+
+                {/* Current Bookings */}
                 {currentAvailability && currentAvailability.bookings && currentAvailability.bookings.length > 0 ? (
                   <div className="existing-bookings">
                     <h4>Current Bookings:</h4>
@@ -284,25 +297,51 @@ const BookingCalendar = ({ onNavigate, selectedHall }) => {
                       <div key={index} className="booking-item">
                         <div className="booking-title">{booking.programmeName}</div>
                         <div className="booking-time">
-                          {booking.timeSlot.startTime} - {booking.timeSlot.endTime}
+                          {formatTimeRange(booking.startTime, booking.endTime)}
                         </div>
                         <div className="booking-seats">{booking.numberOfSeats} seats</div>
+                        <div className="booking-status">{booking.status}</div>
                       </div>
                     ))}
                   </div>
                 ) : (
                   <div className="no-events">
-                    <p>No events available :)</p>
+                    <p>No events scheduled</p>
                   </div>
                 )}
 
-             
-                {currentAvailability && currentAvailability.isDayFullyBooked ? (
+                {/* Available Time Slots */}
+                {currentAvailability && currentAvailability.availableSlots && currentAvailability.availableSlots.length > 0 && (
+                  <div className="available-slots">
+                    <h4>Available Time Slots:</h4>
+                    <div className="slots-list">
+                      {currentAvailability.availableSlots.slice(0, 5).map((slot, index) => (
+                        <div key={index} className="available-slot">
+                          <span>{formatTimeRange(slot.startTime, slot.endTime)}</span>
+                          <small>({slot.duration})</small>
+                        </div>
+                      ))}
+                      {currentAvailability.availableSlots.length > 5 && (
+                        <small>+{currentAvailability.availableSlots.length - 5} more slots available</small>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Book Now Button */}
+                {currentAvailability && currentAvailability.availableSlots && currentAvailability.availableSlots.length > 0 ? (
+                  <button 
+                    className="book-now-btn"
+                    onClick={() => handleBookSlot()}
+                  >
+                    Book Custom Time
+                  </button>
+                ) : currentAvailability && currentAvailability.totalBookings > 0 ? (
                   <button 
                     className="book-now-btn disabled"
                     disabled
                   >
-                    Fully Booked
+                    No Available Slots
                   </button>
                 ) : (
                   <button 
